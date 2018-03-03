@@ -11,25 +11,22 @@ RUN echo '@alpine36 http://dl-cdn.alpinelinux.org/alpine/v3.6/main' >> /etc/apk/
 # need slightly older versions of libsodium (with aes128 support) and libressl
 RUN apk update && \
     apk add --no-cache \
-    # to support TLS 1.2 \
-        wget \
-    # to build indy-sdk \
+        bison \
+        cargo \
         build-base \
-        musl=1.1.18-r3 \
         ca-certificates \
         cmake \
-        rust \
-        cargo \
+        flex \
+        gmp-dev \
         libressl-dev@alpine36 \
         libsodium-dev@alpine36 \
-        sqlite-dev \
-    # to build indy-anoncreds (and pbc library) \
-        python3-dev \
-        py3-pynacl \
         linux-headers \
-        gmp-dev \
-        bison \
-        flex
+        musl=1.1.18-r3 \
+        py3-pynacl \
+        python3-dev \
+        rust \
+        sqlite-dev \
+        wget
 
 # build pbc library (not in alpine repo)
 ARG pbc_lib_ver=0.5.14
@@ -66,12 +63,13 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python && \
 # install indy python packages
 RUN source bin/activate && \
     pip install \
+        python3-indy==${indy_lib_ver} \
         indy-plenum-dev==1.2.173 \
         indy-anoncreds-dev==1.0.32 \
         indy-node-dev==1.2.214
 
 # clean up unneeded packages
-RUN apk del rust cargo bison flex && \
+RUN apk del bison cargo cmake flex rust && \
     rm -rf $HOME/.cache $HOME/.cargo
 
 # drop privileges
