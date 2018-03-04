@@ -3,7 +3,7 @@ FROM alpine:3.7
 ENV BUILD=/opt/app-root
 ENV HOME="$BUILD/src"
 WORKDIR $BUILD
-RUN adduser -u 1000 -DG root indy
+RUN adduser -u 1001 -DG root indy
 
 RUN echo '@alpine36 http://dl-cdn.alpinelinux.org/alpine/v3.6/main' >> /etc/apk/repositories
 
