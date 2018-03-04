@@ -1,7 +1,7 @@
 FROM alpine:3.7
 
-ENV HOME=/app
-ENV BUILD=/build
+ENV BUILD=/opt/app-root
+ENV HOME="$BUILD/src"
 WORKDIR $BUILD
 RUN adduser -u 1000 -DG root indy
 
@@ -47,7 +47,7 @@ RUN wget -O indy-sdk-${indy_lib_ver}.tar.gz \
     cargo build && \
     mv target/debug/libindy.so /usr/lib && \
     cd $BUILD && \
-    rm -rf indy-sdk-*
+    rm -rf indy-sdk-* $HOME/.cargo
 
 # - Create a Python virtual environment for use by any application to avoid
 #   potential conflicts with Python packages preinstalled in the main Python
@@ -57,20 +57,19 @@ RUN wget -O indy-sdk-${indy_lib_ver}.tar.gz \
 #   under random UID.
 RUN ln -sf /usr/bin/python3 /usr/bin/python && \
     ln -sf /usr/bin/pip3 /usr/bin/pip && \
-    pip install virtualenv && \
+    pip --no-cache-dir install virtualenv && \
     virtualenv $BUILD
 
 # install indy python packages
 RUN source bin/activate && \
-    pip install \
+    pip --no-cache-dir install \
         python3-indy==${indy_lib_ver} \
         indy-plenum-dev==1.2.173 \
         indy-anoncreds-dev==1.0.32 \
         indy-node-dev==1.2.214
 
 # clean up unneeded packages
-RUN apk del bison cargo cmake flex rust && \
-    rm -rf $HOME/.cache $HOME/.cargo
+RUN apk del bison cargo cmake flex rust
 
 # drop privileges
 RUN chown -R indy $BUILD $HOME
