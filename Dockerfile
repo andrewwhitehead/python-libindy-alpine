@@ -5,8 +5,6 @@ ENV HOME="$BUILD/src"
 WORKDIR $BUILD
 RUN adduser -u 1001 -DG root indy
 
-RUN echo '@alpine36 http://dl-cdn.alpinelinux.org/alpine/v3.6/main' >> /etc/apk/repositories
-
 # install system packages
 # need slightly older versions of libsodium (with aes128 support) and libressl
 RUN apk update && \
@@ -19,8 +17,8 @@ RUN apk update && \
         flex \
         git \
         gmp-dev \
-        libressl-dev@alpine36 \
-        libsodium-dev@alpine36 \
+        openssl-dev \
+        libsodium-dev \
         linux-headers \
         musl=1.1.18-r3 \
         py3-pynacl \
@@ -60,13 +58,20 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python && \
     pip --no-cache-dir install virtualenv && \
     virtualenv $BUILD
 
+ARG python3_indy_ver=1.3.1-dev-408
+ARG indy_plenum_ver=1.2.268
+ARG indy_anoncreds_ver=1.0.44
+ARG indy_node_ver=1.3.331
+ARG indy_crypto_ver=0.1.6-dev-33
+
 # install indy python packages
 RUN source bin/activate && \
     pip --no-cache-dir install \
-        python3-indy==1.3.1-dev-408 \
-        indy-plenum-dev==1.2.268 \
-        indy-anoncreds-dev==1.0.44 \
-        indy-node-dev==1.3.331
+        python3-indy==${python3_indy_ver} \
+        indy-plenum-dev==${indy_plenum_ver} \
+        indy-anoncreds-dev==${indy_anoncreds_ver} \
+        indy-node-dev==${indy_node_ver} \
+        indy-crypto==${indy_crypto_ver}
 
 # clean up unneeded packages
 RUN apk del bison cargo cmake flex rust
