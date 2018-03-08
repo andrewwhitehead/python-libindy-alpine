@@ -17,6 +17,7 @@ RUN apk update && \
         ca-certificates \
         cmake \
         flex \
+        git \
         gmp-dev \
         libressl-dev@alpine36 \
         libsodium-dev@alpine36 \
@@ -39,15 +40,14 @@ RUN wget https://crypto.stanford.edu/pbc/files/pbc-${pbc_lib_ver}.tar.gz && \
     rm -rf pbc-${pbc_lib_ver}*
 
 # build indy-sdk from git repo
-ARG indy_lib_ver=1.1.0
-RUN wget -O indy-sdk-${indy_lib_ver}.tar.gz \
-        https://github.com/hyperledger/indy-sdk/archive/v${indy_lib_ver}.tar.gz && \
-    tar xzvf indy-sdk-${indy_lib_ver}.tar.gz && \
-    cd indy-sdk-${indy_lib_ver}/libindy && \
-    cargo build && \
-    mv target/debug/libindy.so /usr/lib && \
+ARG indy_sdk_rev=778a38d92234080bb77c6dd469a8ff298d9b7154
+RUN git clone https://github.com/hyperledger/indy-sdk.git && \
+    cd indy-sdk/libindy && \
+    git checkout ${indy_sdk_rev} && \
+    cargo build --release && \
+    mv target/release/libindy.so /usr/lib && \
     cd $BUILD && \
-    rm -rf indy-sdk-* $HOME/.cargo
+    rm -rf indy-sdk $HOME/.cargo
 
 # - Create a Python virtual environment for use by any application to avoid
 #   potential conflicts with Python packages preinstalled in the main Python
@@ -63,10 +63,10 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python && \
 # install indy python packages
 RUN source bin/activate && \
     pip --no-cache-dir install \
-        python3-indy==${indy_lib_ver} \
-        indy-plenum-dev==1.2.173 \
-        indy-anoncreds-dev==1.0.32 \
-        indy-node-dev==1.2.214
+        python3-indy==1.3.1-dev-408 \
+        indy-plenum-dev==1.2.268 \
+        indy-anoncreds-dev==1.0.44 \
+        indy-node-dev==1.3.331
 
 # clean up unneeded packages
 RUN apk del bison cargo cmake flex rust
