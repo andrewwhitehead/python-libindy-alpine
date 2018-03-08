@@ -5,8 +5,10 @@ ENV HOME="$BUILD/src"
 WORKDIR $BUILD
 RUN adduser -u 1001 -DG root indy
 
+RUN echo '@alpine36 http://dl-cdn.alpinelinux.org/alpine/v3.6/main' >> /etc/apk/repositories
+
 # install system packages
-# need slightly older versions of libsodium (with aes128 support) and libressl
+# need slightly older version of libsodium (before aes128 support was removed)
 RUN apk update && \
     apk add --no-cache \
         bison \
@@ -17,8 +19,8 @@ RUN apk update && \
         flex \
         git \
         gmp-dev \
-        openssl-dev \
-        libsodium-dev \
+        libressl-dev@alpine36 \
+        libsodium-dev@alpine36 \
         linux-headers \
         musl=1.1.18-r3 \
         py3-pynacl \
@@ -41,11 +43,22 @@ RUN wget https://crypto.stanford.edu/pbc/files/pbc-${pbc_lib_ver}.tar.gz && \
 ARG indy_sdk_rev=778a38d92234080bb77c6dd469a8ff298d9b7154
 RUN git clone https://github.com/hyperledger/indy-sdk.git && \
     cd indy-sdk/libindy && \
-    git checkout ${indy_sdk_rev} && \
-    cargo build --release && \
-    mv target/release/libindy.so /usr/lib && \
+    git checkout ${indy_sdk_rev}
+# Apply single-line fix to rusqlcipher dependency for libressl support
+WORKDIR $BUILD/indy-sdk/libindy
+RUN git clone https://github.com/mikelodder7/rusqlcipher.git && \
+	cd rusqlcipher && \
+	git checkout dfb9ebb01691e41191e88d1a4612d461796a3fb6 && \
+	sed -i 's/OPENSSL_VERSION_NUMBER < 0x10100000L$/OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)/' \
+		'libsqlcipher-sys/sqlite3/sqlite3.c' && \
+	cd .. && \
+	sed -i 's/^rusqlcipher =.*$/rusqlcipher = { path = "rusqlcipher", features = ["bundled"] }/' \
+		Cargo.toml
+RUN cargo build && \
+    mv target/debug/libindy.so /usr/lib && \
     cd $BUILD && \
     rm -rf indy-sdk $HOME/.cargo
+WORKDIR $BUILD
 
 # - Create a Python virtual environment for use by any application to avoid
 #   potential conflicts with Python packages preinstalled in the main Python
