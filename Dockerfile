@@ -78,8 +78,7 @@ ARG indy_node_ver=1.3.331
 ARG indy_crypto_ver=0.1.6-dev-33
 
 # install indy python packages
-RUN source bin/activate && \
-    pip --no-cache-dir install \
+RUN $BUILD/bin/pip --no-cache-dir install \
         python3-indy==${python3_indy_ver} \
         indy-plenum-dev==${indy_plenum_ver} \
         indy-anoncreds-dev==${indy_anoncreds_ver} \
@@ -93,5 +92,9 @@ RUN apk del bison cargo cmake flex rust
 RUN chown -R indy $BUILD $HOME
 USER indy
 
-ENTRYPOINT ["pipenv", "run"]
+WORKDIR $HOME
+# add pip virtualenv to default init script loaded by ash (busybox sh) and bash
+RUN echo "PATH=$BUILD/bin:\$PATH" >> .bashrc
+ENV ENV=$HOME/.bashrc
+
 CMD ["bash"]
