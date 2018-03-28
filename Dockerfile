@@ -88,13 +88,14 @@ RUN $BUILD/bin/pip --no-cache-dir install \
 # clean up unneeded packages
 RUN apk del bison cargo cmake flex rust
 
+# add pip virtualenv to default init script loaded by ash (busybox sh) and bash
+RUN echo "PATH=$BUILD/bin:\$PATH" >> $HOME/.bashrc
+ENV ENV $HOME/.bashrc
+
 # drop privileges
 RUN chown -R indy $BUILD $HOME
 USER indy
 
 WORKDIR $HOME
-# add pip virtualenv to default init script loaded by ash (busybox sh) and bash
-RUN echo "PATH=$BUILD/bin:\$PATH" >> .bashrc
-ENV ENV=$HOME/.bashrc
 
 CMD ["bash"]
