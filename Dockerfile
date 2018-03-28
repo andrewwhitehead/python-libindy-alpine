@@ -89,7 +89,8 @@ RUN $BUILD/bin/pip --no-cache-dir install \
 RUN apk del bison cargo cmake flex rust
 
 # add pip virtualenv to default init script loaded by ash (busybox sh) and bash
-RUN echo "PATH=$BUILD/bin:\$PATH" >> $HOME/.bashrc
+RUN echo "PATH=$BUILD/bin:\$PATH" >> $HOME/.bashrc && \
+	echo "if [ -f ~/.bashrc ]; then . ~/.bashrc; fi" >> $HOME/.bash_profile
 ENV ENV $HOME/.bashrc
 
 # drop privileges
