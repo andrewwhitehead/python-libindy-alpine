@@ -11,6 +11,7 @@ RUN echo '@alpine36 http://dl-cdn.alpinelinux.org/alpine/v3.6/main' >> /etc/apk/
 # need slightly older version of libsodium (before aes128 support was removed)
 RUN apk update && \
     apk add --no-cache \
+        bash \
         bison \
         cargo \
         build-base \
@@ -41,21 +42,20 @@ RUN wget https://crypto.stanford.edu/pbc/files/pbc-${pbc_lib_ver}.tar.gz && \
 
 # build indy-sdk from git repo
 ARG indy_sdk_rev=778a38d92234080bb77c6dd469a8ff298d9b7154
+ARG indy_sdk_debug=0
 RUN git clone https://github.com/hyperledger/indy-sdk.git && \
     cd indy-sdk/libindy && \
     git checkout ${indy_sdk_rev}
 # Apply single-line fix to rusqlcipher dependency for libressl support
 WORKDIR $BUILD/indy-sdk/libindy
 RUN git clone https://github.com/mikelodder7/rusqlcipher.git && \
-	cd rusqlcipher && \
-	git checkout dfb9ebb01691e41191e88d1a4612d461796a3fb6 && \
-	sed -i 's/OPENSSL_VERSION_NUMBER < 0x10100000L$/OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)/' \
-		'libsqlcipher-sys/sqlite3/sqlite3.c' && \
-	cd .. && \
-	sed -i 's/^rusqlcipher =.*$/rusqlcipher = { path = "rusqlcipher", features = ["bundled"] }/' \
-		Cargo.toml
-RUN cargo build && \
-    mv target/debug/libindy.so /usr/lib && \
+    cd rusqlcipher && \
+    git checkout f04967cecd299309b213f98cd9f9c5e0cf18e950 && \
+    cd .. && \
+    sed -i 's/^rusqlcipher =.*$/rusqlcipher = { path = "rusqlcipher", features = ["bundled"] }/' \
+        Cargo.toml
+RUN [ -n "${indy_sdk_debug}" ] && cargo build || cargo build --release && \
+    mv target/*/libindy.so /usr/lib && \
     cd $BUILD && \
     rm -rf indy-sdk $HOME/.cargo
 WORKDIR $BUILD
@@ -93,4 +93,5 @@ RUN apk del bison cargo cmake flex rust
 RUN chown -R indy $BUILD $HOME
 USER indy
 
-CMD ["sh"]
+ENTRYPOINT ["pipenv", "run"]
+CMD ["bash"]
