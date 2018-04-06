@@ -1,9 +1,23 @@
 FROM alpine:3.7
 
-ENV BUILD=/opt/app-root
-ENV HOME="$BUILD/src"
-WORKDIR $BUILD
-RUN adduser -u 1001 -DG root indy
+ARG uid=1001
+ARG gid=1001
+ARG python3_indy_ver=1.3.1-dev-408
+ARG indy_plenum_ver=1.2.264
+ARG indy_anoncreds_ver=1.0.32
+ARG indy_node_ver=1.3.330
+ARG indy_crypto_ver=0.1.6-dev-33
+
+ENV HOME=/home/indy
+ENV BUILD=$HOME/build
+
+ENV LC_ALL="C.UTF-8"
+ENV LANG="C.UTF-8"
+ENV SHELL=/bin/bash
+
+ENV RUST_LOG=warning
+
+RUN addgroup -g $gid indy && adduser -u $uid -D -G root -G indy indy
 
 RUN echo '@alpine36 http://dl-cdn.alpinelinux.org/alpine/v3.6/main' >> /etc/apk/repositories
 
@@ -30,6 +44,8 @@ RUN apk update && \
         sqlite-dev \
         wget
 
+WORKDIR $BUILD
+
 # build pbc library (not in alpine repo)
 ARG pbc_lib_ver=0.5.14
 RUN wget https://crypto.stanford.edu/pbc/files/pbc-${pbc_lib_ver}.tar.gz && \
@@ -42,7 +58,7 @@ RUN wget https://crypto.stanford.edu/pbc/files/pbc-${pbc_lib_ver}.tar.gz && \
 
 # build indy-sdk from git repo
 ARG indy_sdk_rev=778a38d92234080bb77c6dd469a8ff298d9b7154
-ARG indy_sdk_debug=0
+ARG indy_sdk_debug=1
 RUN git clone https://github.com/hyperledger/indy-sdk.git && \
     cd indy-sdk/libindy && \
     git checkout ${indy_sdk_rev}
@@ -54,11 +70,25 @@ RUN git clone https://github.com/mikelodder7/rusqlcipher.git && \
     cd .. && \
     sed -i 's/^rusqlcipher =.*$/rusqlcipher = { path = "rusqlcipher", features = ["bundled"] }/' \
         Cargo.toml
-RUN [ -n "${indy_sdk_debug}" ] && cargo build || cargo build --release && \
+RUN [ "${indy_sdk_debug}" == "1" ] && cargo build || cargo build --release && \
     mv target/*/libindy.so /usr/lib && \
     cd $BUILD && \
-    rm -rf indy-sdk $HOME/.cargo
+    rm -rf indy-sdk
 WORKDIR $BUILD
+
+# build indy-crypto from git repo
+ARG indy_crypto_rev=75add4fff63168f3919a1b8bdf1e11f18ecbb4fc
+RUN git clone https://github.com/hyperledger/indy-crypto.git && \
+    cd indy-crypto/libindy-crypto && \
+    git checkout ${indy_crypto_rev}
+WORKDIR $BUILD/indy-crypto/libindy-crypto
+RUN [ "${indy_sdk_debug}" == "1" ] && cargo build || cargo build --release && \
+    mv target/*/libindy_crypto.so /usr/lib && \
+    cd $BUILD && \
+    rm -rf indy-crypto
+
+# clean up cargo cache
+RUN rm -rf $HOME/.cargo
 
 # - Create a Python virtual environment for use by any application to avoid
 #   potential conflicts with Python packages preinstalled in the main Python
@@ -69,16 +99,11 @@ WORKDIR $BUILD
 RUN ln -sf /usr/bin/python3 /usr/bin/python && \
     ln -sf /usr/bin/pip3 /usr/bin/pip && \
     pip --no-cache-dir install virtualenv && \
-    virtualenv $BUILD
-
-ARG python3_indy_ver=1.3.1-dev-408
-ARG indy_plenum_ver=1.2.268
-ARG indy_anoncreds_ver=1.0.44
-ARG indy_node_ver=1.3.331
-ARG indy_crypto_ver=0.1.6-dev-33
+    virtualenv $HOME
+ENV PATH "$HOME/bin:$PATH"
 
 # install indy python packages
-RUN $BUILD/bin/pip --no-cache-dir install \
+RUN pip --no-cache-dir install \
         python3-indy==${python3_indy_ver} \
         indy-plenum-dev==${indy_plenum_ver} \
         indy-anoncreds-dev==${indy_anoncreds_ver} \
@@ -88,13 +113,9 @@ RUN $BUILD/bin/pip --no-cache-dir install \
 # clean up unneeded packages
 RUN apk del bison cargo cmake flex rust
 
-# add pip virtualenv to default init script loaded by ash (busybox sh) and bash
-RUN echo "export PATH=$BUILD/bin:\$PATH" >> $HOME/.bashrc && \
-	echo "if [ -f ~/.bashrc ]; then . ~/.bashrc; fi" >> $HOME/.bash_profile
-ENV ENV $HOME/.bashrc
 
 # drop privileges
-RUN chown -R indy $BUILD $HOME
+RUN chown -R indy $HOME
 USER indy
 
 WORKDIR $HOME
