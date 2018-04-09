@@ -2,11 +2,6 @@ FROM alpine:3.7
 
 ARG uid=1001
 ARG gid=1001
-ARG python3_indy_ver=1.3.1-dev-408
-ARG indy_plenum_ver=1.2.264
-ARG indy_anoncreds_ver=1.0.32
-ARG indy_node_ver=1.3.330
-ARG indy_crypto_ver=0.1.6-dev-33
 
 ENV HOME=/home/indy
 ENV BUILD=$HOME/build
@@ -56,39 +51,35 @@ RUN wget https://crypto.stanford.edu/pbc/files/pbc-${pbc_lib_ver}.tar.gz && \
     cd $BUILD && \
     rm -rf pbc-${pbc_lib_ver}*
 
-# build indy-sdk from git repo
-ARG indy_sdk_rev=778a38d92234080bb77c6dd469a8ff298d9b7154
-ARG indy_sdk_debug=1
-RUN git clone https://github.com/hyperledger/indy-sdk.git && \
-    cd indy-sdk/libindy && \
-    git checkout ${indy_sdk_rev}
-# Apply single-line fix to rusqlcipher dependency for libressl support
-WORKDIR $BUILD/indy-sdk/libindy
-RUN git clone https://github.com/mikelodder7/rusqlcipher.git && \
-    cd rusqlcipher && \
-    git checkout f04967cecd299309b213f98cd9f9c5e0cf18e950 && \
-    cd .. && \
-    sed -i 's/^rusqlcipher =.*$/rusqlcipher = { path = "rusqlcipher", features = ["bundled"] }/' \
-        Cargo.toml
-RUN [ "${indy_sdk_debug}" == "1" ] && cargo build || cargo build --release && \
-    mv target/*/libindy.so /usr/lib && \
-    cd $BUILD && \
-    rm -rf indy-sdk
-WORKDIR $BUILD
+#ARG indy_sdk_flags=--release
+ARG indy_sdk_flags=
 
 # build indy-crypto from git repo
 ARG indy_crypto_rev=75add4fff63168f3919a1b8bdf1e11f18ecbb4fc
 RUN git clone https://github.com/hyperledger/indy-crypto.git && \
     cd indy-crypto/libindy-crypto && \
-    git checkout ${indy_crypto_rev}
-WORKDIR $BUILD/indy-crypto/libindy-crypto
-RUN [ "${indy_sdk_debug}" == "1" ] && cargo build || cargo build --release && \
-    mv target/*/libindy_crypto.so /usr/lib && \
+    git checkout ${indy_crypto_rev} && \
+    cargo build ${indy_sdk_flags} && \
+    mv target/*/libindy_crypto.so /usr/local/lib && \
     cd $BUILD && \
-    rm -rf indy-crypto
+    rm -rf indy-crypto $HOME/.cargo
 
-# clean up cargo cache
-RUN rm -rf $HOME/.cargo
+# build indy-sdk from git repo
+ARG indy_sdk_rev=778a38d92234080bb77c6dd469a8ff298d9b7154
+RUN git clone https://github.com/hyperledger/indy-sdk.git && \
+    cd indy-sdk/libindy && \
+    git checkout ${indy_sdk_rev} && \
+	echo Checking out prerelease version of rusqlcipher for libressl support.. && \
+	git clone https://github.com/mikelodder7/rusqlcipher.git && \
+    cd rusqlcipher && \
+    git checkout f04967cecd299309b213f98cd9f9c5e0cf18e950 && \
+    cd .. && \
+    sed -i 's/^rusqlcipher =.*$/rusqlcipher = { path = "rusqlcipher", features = ["bundled"] }/' \
+        Cargo.toml && \
+	cargo build ${indy_sdk_flags} && \
+    mv target/*/libindy.so /usr/local/lib && \
+    cd $BUILD && \
+    rm -rf indy-sdk $HOME/.cargo
 
 # - Create a Python virtual environment for use by any application to avoid
 #   potential conflicts with Python packages preinstalled in the main Python
@@ -102,6 +93,12 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python && \
     virtualenv $HOME
 ENV PATH "$HOME/bin:$PATH"
 
+ARG python3_indy_ver=1.3.1-dev-408
+ARG indy_plenum_ver=1.2.264
+ARG indy_anoncreds_ver=1.0.32
+ARG indy_node_ver=1.3.330
+ARG indy_crypto_ver=0.1.6-dev-33
+
 # install indy python packages
 RUN pip --no-cache-dir install \
         python3-indy==${python3_indy_ver} \
@@ -112,7 +109,6 @@ RUN pip --no-cache-dir install \
 
 # clean up unneeded packages
 RUN apk del bison cargo cmake flex rust
-
 
 # drop privileges
 RUN chown -R indy $HOME
